@@ -11,6 +11,8 @@ class CreatePyGUI(QMainWindow):
     '''
     def __init__(self):
         super().__init__()
+        self.saved_x_range = None  
+        self.saved_y_range = None 
         self.simulated_items = []
         self.setup_ui()
 
@@ -67,6 +69,9 @@ class CreatePyGUI(QMainWindow):
         self.plot_simulated_data(data)
 
     def plot_experimental_data(self, data):
+        if data.experimental_data is None:  # Check if experimental data is available
+            print("No experimental data available, skipping experimental data plotting.")
+            return  # Skip plotting experimental data
         self.exp_data = data.experimental_data
         # Plot experimental data
         if hasattr(self, 'exp_data_line'):
@@ -74,32 +79,50 @@ class CreatePyGUI(QMainWindow):
 
         # Set the initial X-range to encompass all experimental data
         self.x_exp, self.z_exp = self.exp_data[0]*1e-6, self.exp_data[1]
-        #self.x_exp, self.z_exp = self.exp_data[:, 0]*1e-6, self.exp_data[:, 1] # 1e-6 for having MHz
-        self.initial_x_range = (min(self.x_exp), max(self.x_exp))
-        self.plot_widget.setXRange(*self.initial_x_range, padding=0.05)
+        
+        if self.saved_x_range is None:
+            print(" 1.self.saved_x_range is None: ")
+            self.saved_x_range = (min(self.x_exp), max(self.x_exp))
+            self.plot_widget.setXRange(*self.saved_x_range, padding=0.05)
+
+            # Save the Y range as well
+            min_z = np.min(self.z_exp)
+            max_z = max(self.z_exp)
+            if min_z <= 0:
+                # Handle the logarithmic scale by setting the minimum to a small value if necessary
+                min_z = 1e-10  # or some other small positive value
+            print("min_z ",min_z ," max_z = ",max_z)
 
         self.exp_data_line = self.plot_widget.plot(self.x_exp, self.z_exp, pen=pg.mkPen('white', width=3))
         self.legend.addItem(self.exp_data_line, 'Experimental Data')
 
     def plot_simulated_data(self, data):
         self.simulated_data = data.simulated_data_dict
-        max_z = max(self.z_exp)
-        min_z = np.min(self.z_exp[self.z_exp > 0])
+        refion = data.ref_ion
         for i, (harmonic, sdata) in enumerate(self.simulated_data.items()):
             color = pg.intColor(i, hues=len(self.simulated_data))
             for entry in sdata:
                 freq = float(entry[0])*1e-6
                 label = entry[2]
+                yield_value = float(entry[1])  # Simulated yield (amplitude)
+                #print("freq = ",freq," yield_value = ",yield_value)
                 # Find the corresponding z_exp for the given freq
                 freq_range = 0.005
-                z_value = self.get_z_exp_at_freq(freq, freq_range)
-                if z_value is None:
-                    z_value = max_z  # Use max_z if the corresponding z_exp is not found
+                if data.experimental_data is None:  # Check if experimental data is available
+                    z_value = yield_value
+                else:
+                    z_value = self.get_z_exp_at_freq(freq, freq_range)
+                label_color = None
+                # Set label color to yellow if it matches the reference ion
+                if label == refion:
+                    label_color = 'yellow'  # If matching, use yellow
+                else:
+                    label_color = color  # Otherwise, use the default color
                 
                 # Vertical line
-                line = self.plot_widget.plot([freq, freq], [min_z, z_value], pen=pg.mkPen(color=color, width=1, style = Qt.DashLine ))
+                line = self.plot_widget.plot([freq, freq], [1e-10, z_value], pen=pg.mkPen(color=label_color, width=1, style = Qt.DashLine ))
                 # Text label at top
-                text = pg.TextItem(text=label, color=color, anchor=(0.5, 0))
+                text = pg.TextItem(text=label, color=label_color, anchor=(0.5, 0))
                 self.plot_widget.addItem(text)
 
                 logy_checked = self.plot_widget.plotItem.ctrl.logYCheck.isChecked()

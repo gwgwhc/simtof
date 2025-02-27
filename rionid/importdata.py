@@ -37,6 +37,9 @@ class ImportData(object):
                 self._save_experimental_data()
             else:
                 self._load_experimental_data()
+        else:
+            print("No experimental data file provided. Using default or simulated data.")
+            self.experimental_data = None  # Set empty or simulated data here
 
     def _get_cache_file_path(self, filename):
         base, _ = os.path.splitext(filename)
@@ -60,16 +63,6 @@ class ImportData(object):
                 self.experimental_data = handle_spectrumnpz_data(filename)
             else:
                 self.experimental_data = handle_tiqnpz_data(filename)
-            #if file_extension.lower() == 'tiq.npz':
-            #    #Shahab processed tiq files format (with 3 arrays)
-            #    self.experimental_data = handle_tiqnpz_data(filename)
-            #else:    
-            #    # Spectrum data (2 arrays)
-            #    self.experimental_data = handle_prerionidnpz_data(filename)
-        #if :
-        #    handle_read_rsa_result_csv(filename)
-        #if :
-        #    handle_read_rsa_data_csv
 
     def _save_experimental_data(self):
         if self.experimental_data is not None:
@@ -119,7 +112,6 @@ class ImportData(object):
                         self.total_mass[ion_name] = m_q * pp.qq  # Calculate and store the total mass
 
     def _calculate_srrf(self, moqs = None, fref = None, brho = None, ke = None, gam = None, correct = None):
-        print("chenrj ...")
         if moqs:
             self.moq = moqs
         
@@ -133,11 +125,15 @@ class ImportData(object):
             self.srrf = self.srrf + polyval(array(correct), self.srrf * self.ref_frequency) / self.ref_frequency
 
             
-    def _simulated_data(self, harmonics = None, particles = False,mode = None):
+    def _simulated_data(self, brho = None, harmonics = None, particles = False,mode = None):
         for harmonic in harmonics:
             ref_moq = self.moq[self.ref_ion]
-            ref_frequency =  self.ref_frequency
-            self.brho = self.calculate_brho_relativistic(ref_moq, ref_frequency, self.ring.circumference, harmonic) #improve this line
+            if mode == 'Bρ':
+                ref_frequency =  self.ref_frequency*harmonic
+                self.brho = brho
+            else:
+                ref_frequency =  self.ref_frequency
+                self.brho = self.calculate_brho_relativistic(ref_moq, ref_frequency, self.ring.circumference, harmonic) #improve this line
         # Dictionary with the simulated meassured frecuency and expected yield, for each harmonic
         self.simulated_data_dict = dict()
         
@@ -190,7 +186,7 @@ class ImportData(object):
             float: magnetic rigidity (Bρ) in T*m (Tesla meters)
             """
         # Speed of light in m/s
-        c = 299792458.0
+        #c = 299792458.0
         
         # Calculate the actual frequency of the ion
         actual_frequency = frequency / harmonic
@@ -199,15 +195,14 @@ class ImportData(object):
         v = actual_frequency * circumference
         
         # Calculate the Lorentz factor gamma
-        gamma = 1 / np.sqrt(1 - (v / c) ** 2)
+        gamma = 1 / np.sqrt(1 - (v / AMEData.CC) ** 2)
         
         # Calculate the momentum p = γ m v
-        p = gamma * moq * v
+        p = moq *AMEData.UU* gamma *  (v/AMEData.CC)/AMEData.CC
         
         # Calculate the magnetic rigidity (Bρ)
-        brho = p
-        
-        return brho/1e8
+        brho = p*1e6
+        return brho
                                                             
     def reference_frequency(self, fref = None, brho = None, ke = None, gam = None):
         
@@ -231,7 +226,6 @@ class ImportData(object):
         
         if brho:
             gamma = ImportData.gamma_brho(brho, ref_charge, ref_mass)
-            
         elif ke:
             gamma = ImportData.gamma_ke(ke, aa, ref_mass)
             

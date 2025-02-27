@@ -19,7 +19,7 @@ def import_controller(datafile=None, filep=None, alphap=None, refion=None, harmo
         mydata._calculate_moqs()
         mydata._calculate_srrf(fref = fref, brho = brho, ke = ke, gam = gam, correct = False)
         harmonics = [float(h) for h in harmonics.split()]
-        mydata._simulated_data(harmonics = harmonics, mode = mode) # -> simulated frecs
+        mydata._simulated_data(brho = brho, harmonics = harmonics, mode = mode) # -> simulated frecs
         # "Outputs"
         if nions:
             display_nions(int(nions), mydata.yield_data, mydata.nuclei_names, mydata.simulated_data_dict, refion, harmonics)
@@ -27,7 +27,7 @@ def import_controller(datafile=None, filep=None, alphap=None, refion=None, harmo
         logger.info(f'Simulation results (ordered by frequency) will be saved to simulation_result.out')
         sort_index = argsort(mydata.srrf)
         # Save the results to a file with the specified format
-        save_simulation_results(mydata, harmonics, sort_index)
+        save_simulation_results(mydata,mode, harmonics, sort_index)
         logger.info(f'Succesfully saved!')
 
         return mydata # Returns the simulated spectrum data 
@@ -47,7 +47,7 @@ def display_nions(nions, yield_data, nuclei_names, simulated_data_dict, ref_ion,
         name = f'{harmonic}'
         simulated_data_dict[name] = simulated_data_dict[name][sorted_indices]
 
-def save_simulation_results(mydata, harmonics, sort_index, filename = 'simulation_result.out'):
+def save_simulation_results(mydata, mode, harmonics, sort_index, filename = 'simulation_result.out'):
     """
     Saves the simulation results to a specified file.
     
@@ -74,7 +74,8 @@ def save_simulation_results(mydata, harmonics, sort_index, filename = 'simulatio
         # Writing the sorted simulation results
         for i in sort_index:
             ion = mydata.nuclei_names[i]
-            fre = mydata.srrf[i] * mydata.ref_frequency
+            if mode == 'Frequency': fre = mydata.srrf[i] * mydata.ref_frequency
+            elif mode == 'Bρ': fre = mydata.srrf[i] * mydata.ref_frequency*harmonic
             yield_ = mydata.yield_data[i]
             moq = mydata.moq[ion]
             mass_u = mydata.total_mass[ion]
